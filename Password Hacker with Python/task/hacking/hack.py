@@ -1,18 +1,26 @@
 """Password Hacker with Python - Hack Module"""
 import socket
 from argparse import ArgumentParser, Namespace
-import string
 from itertools import product
 from typing import Any, Generator
 
 
 def parse_arguments() -> Namespace:
     """Parse command line arguments"""
+
     parser = ArgumentParser()
     parser.add_argument("ip", type=str, help="IP Address")
     parser.add_argument("port", type=int, help="Port")
     args = parser.parse_args()
     return args
+
+
+def case_combinations(word: str) -> Generator[str, Any, None]:
+    """Generate all case combinations of a word"""
+    # Build list of (lower, upper) tuples for each char
+    variants = [(c.lower(), c.upper()) if c.isalpha() else (c,) for c in word]
+    for combo in product(*variants):
+        yield ''.join(combo)
 
 
 def guess_password(max_length: int = 9) -> Generator[str, Any, None]:
@@ -21,10 +29,11 @@ def guess_password(max_length: int = 9) -> Generator[str, Any, None]:
     Try cartesian product of letters and digits up to max_length
     """
 
-    alphabet = string.ascii_lowercase + string.digits
-    for n in range(1, max_length + 1):
-        for t in product(alphabet, repeat=n):
-            yield ''.join(t)
+    with open("passwords.txt", "r") as file:
+        passwords = file.read().splitlines()
+        for password in passwords:
+            for variant in case_combinations(password):
+                yield variant
 
 
 def main():
