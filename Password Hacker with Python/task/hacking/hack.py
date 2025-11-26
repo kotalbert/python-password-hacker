@@ -36,6 +36,7 @@ def main():
         response = client.recv(1024).decode()
         if response == "Connection success!":
             print(guess)
+            client.close()
             return
 
 
